@@ -37,11 +37,12 @@ def detect_order_blocks(
     obs: list[OrderBlock] = []
     min_bar = max(0, len(candles) - lookback - 1)  # only care about recent OBs
 
+    lookahead = 5  # bars to scan for follow-through move
+
     for i in range(0, len(candles) - 1):
         if i < min_bar:
             continue  # too old to be a relevant OB
         curr = candles[i]
-        nxt  = candles[i + 1] if i + 1 < len(candles) else None
 
         candle_range = curr.high - curr.low
         if candle_range == 0:
@@ -52,30 +53,34 @@ def detect_order_blocks(
         if body_pct < min_body_pct:
             continue
 
-        if nxt is None:
-            continue
+        # Check follow-through over the next `lookahead` bars instead of
+        # requiring the immediate next candle to close beyond the extreme.
+        # This fixes the OB filter returning zero results.
+        future = candles[i + 1 : min(i + 1 + lookahead, len(candles))]
 
-        # Bullish OB: strong bearish candle followed by move higher
-        if curr.close < curr.open and nxt.close > curr.high:
-            obs.append(OrderBlock(
-                direction  = FVGDirection.BULLISH,
-                top        = curr.open,   # top of bearish candle body
-                bottom     = curr.close,  # bottom of bearish candle body
-                bar_index  = i,
-                timestamp  = curr.time,
-                strength   = body_pct,
-            ))
+        # Bullish OB: strong bearish candle → any of the next bars closes above its high
+        if curr.close < curr.open:
+            if any(c.close > curr.high for c in future):
+                obs.append(OrderBlock(
+                    direction  = FVGDirection.BULLISH,
+                    top        = curr.open,   # top of bearish candle body
+                    bottom     = curr.close,  # bottom of bearish candle body
+                    bar_index  = i,
+                    timestamp  = curr.time,
+                    strength   = body_pct,
+                ))
 
-        # Bearish OB: strong bullish candle followed by move lower
-        elif curr.close > curr.open and nxt.close < curr.low:
-            obs.append(OrderBlock(
-                direction  = FVGDirection.BEARISH,
-                top        = curr.close,  # top of bullish candle body
-                bottom     = curr.open,   # bottom of bullish candle body
-                bar_index  = i,
-                timestamp  = curr.time,
-                strength   = body_pct,
-            ))
+        # Bearish OB: strong bullish candle → any of the next bars closes below its low
+        elif curr.close > curr.open:
+            if any(c.close < curr.low for c in future):
+                obs.append(OrderBlock(
+                    direction  = FVGDirection.BEARISH,
+                    top        = curr.close,  # top of bullish candle body
+                    bottom     = curr.open,   # bottom of bullish candle body
+                    bar_index  = i,
+                    timestamp  = curr.time,
+                    strength   = body_pct,
+                ))
 
     return obs
 

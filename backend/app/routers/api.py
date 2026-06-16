@@ -5,8 +5,10 @@ from app.models.schemas import (
     AccountSummary, Position, Candle, BacktestRequest, BacktestResult,
     BacktestStats, Signal, OrderRequest, OrderResult, ScannerConfig,
     StrategyParams, FVGZone, INSTRUMENT_CATALOGUE,
+    ORBParams, ORBDailySetup, ORBBacktestRequest, ORBBacktestResult,
 )
 from app.services.strategy import detect_fvgs, run_backtest, compute_stats
+from app.services.orb_strategy import analyse_today, backtest_orb
 from app.core.config import get_settings
 
 router = APIRouter()
@@ -251,6 +253,7 @@ async def get_signals(request: Request, limit: int = 50):
 @router.delete("/scanner/signals")
 async def clear_signals(request: Request):
     get_scanner(request).clear_signals()
+    get_scanner(request).clear_signals()
     return {"cleared": True}
 
 
@@ -258,7 +261,68 @@ async def clear_signals(request: Request):
 async def scanner_status(request: Request):
     scanner = get_scanner(request)
     return {
-        "running":     scanner.is_running,
-        "config":      scanner.get_config(),
+        "running":      scanner.is_running,
+        "config":       scanner.get_config(),
         "signal_count": len(scanner.get_signals(500)),
     }
+
+
+# ── ORB-FVG Strategy ──────────────────────────────────────────────────────────
+
+@router.get("/orb/analyze/{instrument}", response_model=ORBDailySetup)
+async def orb_analyze(
+    request: Request,
+    instrument: str,
+    params: ORBParams = ORBParams(),
+):
+    """
+    Fetch today's M1 candles and return the current ORB-FVG setup status.
+    Best used with SPX500_USD or NAS100_USD (US market 9:30 AM ET open).
+    """
+    if instrument not in INSTRUMENT_CATALOGUE:
+        raise HTTPException(status_code=400, detail=f"Unknown instrument: {instrument}")
+    oanda = get_oanda(request)
+    try:
+        candles = await oanda.get_candles(instrument, "M1", 200)
+        return analyse_today(candles, instrument, params)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ORB analysis failed: {e}")
+
+
+@router.post("/orb/backtest", response_model=ORBBacktestResult)
+async def orb_backtest(request: Request, body: ORBBacktestRequest):
+    """
+    Backtest the ORB-FVG strategy on M1 candles.
+    Fetches up to 5000 M1 bars per instrument (~12 trading days for US indices).
+    """
+    oanda = get_oanda(request)
+    all_trades       = []
+    by_instrument    = {}
+    all_daily_setups = []
+
+    for instrument in body.instruments:
+        if instrument not in INSTRUMENT_CATALOGUE:
+            raise HTTPException(status_code=400, detail=f"Unknown instrument: {instrument}")
+        try:
+            candle_count = min(body.lookback_days * 390, 5000)
+            candles = await oanda.get_candles(instrument, "M1", candle_count)
+            trades, _, daily_setups = backtest_orb(instrument, candles, body.params)
+            all_trades.extend(trades)
+            by_instrument[instrument] = compute_stats(trades)
+            all_daily_setups.extend(daily_setups)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"{instrument}: {e}")
+
+    sorted_trades = sorted(all_trades, key=lambda t: t.entry_time)
+    equity        = [10_000.0]
+    for t in sorted_trades:
+        equity.append(round(equity[-1] + (t.pnl or 0), 2))
+
+    return ORBBacktestResult(
+        request       = body,
+        stats         = compute_stats(all_trades),
+        trades        = sorted_trades,
+        equity_curve  = equity,
+        by_instrument = by_instrument,
+        daily_setups  = all_daily_setups,
+    )

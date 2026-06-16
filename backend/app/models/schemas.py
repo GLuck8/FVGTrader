@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 
@@ -228,3 +228,85 @@ class Position(BaseModel):
     current_price: float
     unrealized_pnl: float
     open_time: Optional[datetime] = None
+
+
+# ── ORB-FVG Strategy ──────────────────────────────────────────────────────────
+
+class ORBParams(BaseModel):
+    min_body_pct: float = Field(0.6, ge=0.3, le=1.0,
+                                description="Breakout candle body must be >= this fraction of its range")
+    rr_ratio: float = Field(3.0, ge=1.0, le=10.0,
+                            description="Risk:Reward ratio for target")
+    stop_buffer_pct: float = Field(0.2, ge=0.0, le=1.0,
+                                   description="Extra buffer below/above retest candles as % of FVG size")
+    max_wait_bars: int = Field(60, ge=10, le=240,
+                               description="Max M1 bars to wait for retest after FVG forms")
+    risk_pct: float = Field(1.0, ge=0.1, le=5.0,
+                            description="% of account balance to risk per trade")
+
+
+class ORBStatus(str, Enum):
+    WAITING_FOR_OPEN     = "waiting_for_open"
+    BUILDING_RANGE       = "building_range"
+    WAITING_FOR_BREAKOUT = "waiting_for_breakout"
+    FVG_FORMED           = "fvg_formed"
+    ENTRY_SIGNAL         = "entry_signal"
+    EXPIRED              = "expired"
+    NO_SETUP             = "no_setup"
+
+
+class ORBEntrySignal(BaseModel):
+    entry: float
+    stop: float
+    target: float
+    entry_time: datetime
+    risk: float
+    reward: float
+
+
+class ORBDailySetup(BaseModel):
+    instrument: str
+    date: str
+    status: ORBStatus
+
+    opening_range_high: Optional[float]  = None
+    opening_range_low: Optional[float]   = None
+    range_size: Optional[float]          = None
+
+    direction: Optional[FVGDirection]    = None
+    breakout_price: Optional[float]      = None
+    breakout_time: Optional[datetime]    = None
+    breakout_body_pct: Optional[float]   = None
+
+    fvg_top: Optional[float]             = None
+    fvg_bottom: Optional[float]          = None
+    fvg_midpoint: Optional[float]        = None
+
+    signal: Optional[ORBEntrySignal]     = None
+
+
+class ORBBacktestRequest(BaseModel):
+    instruments: list[str]
+    lookback_days: int = Field(15, ge=1, le=60,
+                               description="Trading days to analyse (bounded by OANDA 5000-bar limit)")
+    params: ORBParams = ORBParams()
+
+
+class ORBBacktestResult(BaseModel):
+    request: ORBBacktestRequest
+    stats: BacktestStats
+    trades: list[BacktestTrade]
+    equity_curve: list[float]
+    by_instrument: dict[str, BacktestStats]
+    daily_setups: list[ORBDailySetup]
+ding days to analyse (bounded by OANDA's 5000-bar limit)")
+    params: ORBParams = ORBParams()
+
+
+class ORBBacktestResult(BaseModel):
+    request: ORBBacktestRequest
+    stats: BacktestStats
+    trades: list[BacktestTrade]
+    equity_curve: list[float]
+    by_instrument: dict[str, BacktestStats]
+    daily_setups: list[ORBDailySetup]           # one per trading day processed

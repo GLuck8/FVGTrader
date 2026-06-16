@@ -3,6 +3,7 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import ChartView from './pages/ChartView'
 import Backtest from './pages/Backtest'
+import ORBStrategy from './pages/ORBStrategy'
 import Config from './pages/Config'
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
         <Route index    element={<Dashboard />} />
         <Route path="chart"    element={<ChartView />} />
         <Route path="backtest" element={<Backtest />} />
+        <Route path="orb"      element={<ORBStrategy />} />
         <Route path="config"   element={<Config />} />
       </Route>
     </Routes>

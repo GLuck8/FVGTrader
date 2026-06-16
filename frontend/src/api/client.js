@@ -53,3 +53,11 @@ export const getScannerSignals = (limit = 50) =>
   api.get('/scanner/signals', { params: { limit } }).then(r => r.data)
 export const clearSignals      = ()       => api.delete('/scanner/signals').then(r => r.data)
 export const getScannerStatus  = ()       => api.get('/scanner/status').then(r => r.data)
+
+// ── ORB-FVG Strategy ─────────────────────────────────────────────────────────
+
+export const getORBAnalysis = (instrument, params = {}) =>
+  api.get(`/orb/analyze/${instrument}`, { params }).then(r => r.data)
+
+export const runORBBacktest = (body) =>
+  api.post('/orb/backtest', body, { timeout: 60000 }).then(r => r.data)

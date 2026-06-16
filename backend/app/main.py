@@ -61,19 +61,11 @@ def create_app() -> FastAPI:
         lifespan    = lifespan,
     )
 
-    # CORS — allow the React frontend (Vercel) and local dev
-    origins = [
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3000",
-        "https://*.vercel.app",    # Vercel previews
-    ]
-    if settings.environment == "development":
-        origins.append("*")       # open in dev for convenience
-
+    # CORS — allow all origins (personal tool, no public API exposure)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins     = origins,
-        allow_credentials = True,
+        allow_origins     = ["*"],
+        allow_credentials = False,
         allow_methods     = ["*"],
         allow_headers     = ["*"],
     )

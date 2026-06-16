@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', sans-serif;
+  }
+
+  body {
+    @apply bg-surface text-gray-100 antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-border rounded;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-card border border-surface-border rounded-xl p-4;
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand hover:bg-brand-dark text-white;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent border border-surface-border hover:bg-surface-hover text-gray-300;
+  }
+
+  .btn-danger {
+    @apply btn bg-bear/20 border border-bear/40 hover:bg-bear/30 text-bear;
+  }
+
+  .badge-bull {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium
+           bg-bull/15 text-bull border border-bull/30;
+  }
+
+  .badge-bear {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium
+           bg-bear/15 text-bear border border-bear/30;
+  }
+
+  .stat-card {
+    @apply card flex flex-col gap-1;
+  }
+
+  .stat-label {
+    @apply text-xs text-gray-400 uppercase tracking-wider;
+  }
+
+  .stat-value {
+    @apply text-2xl font-semibold font-mono;
+  }
+
+  .input {
+    @apply w-full bg-surface border border-surface-border rounded-lg px-3 py-2
+           text-sm text-gray-100 placeholder-gray-500
+           focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/40
+           transition-colors;
+  }
+
+  .select {
+    @apply input appearance-none cursor-pointer;
+  }
+
+  .toggle {
+    @apply relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+           focus:outline-none cursor-pointer;
+  }
+}

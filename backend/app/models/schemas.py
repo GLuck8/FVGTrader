@@ -298,15 +298,4 @@ class ORBBacktestResult(BaseModel):
     trades: list[BacktestTrade]
     equity_curve: list[float]
     by_instrument: dict[str, BacktestStats]
-    daily_setups: list[ORBDailySetup]
-ding days to analyse (bounded by OANDA's 5000-bar limit)")
-    params: ORBParams = ORBParams()
-
-
-class ORBBacktestResult(BaseModel):
-    request: ORBBacktestRequest
-    stats: BacktestStats
-    trades: list[BacktestTrade]
-    equity_curve: list[float]
-    by_instrument: dict[str, BacktestStats]
     daily_setups: list[ORBDailySetup]           # one per trading day processed

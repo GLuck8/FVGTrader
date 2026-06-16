@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Request
 from typing import Optional
 
 from app.models.schemas import (
@@ -14,10 +14,10 @@ router = APIRouter()
 
 # ── Dependency: get shared service instances from app state ──────────────────
 
-def get_oanda(request):
+def get_oanda(request: Request):
     return request.app.state.oanda
 
-def get_scanner(request):
+def get_scanner(request: Request):
     return request.app.state.scanner
 
 
@@ -44,7 +44,7 @@ async def list_instruments():
 # ── Account ───────────────────────────────────────────────────────────────────
 
 @router.get("/account", response_model=AccountSummary)
-async def get_account(request):
+async def get_account(request: Request):
     oanda = get_oanda(request)
     try:
         return await oanda.get_account()
@@ -53,7 +53,7 @@ async def get_account(request):
 
 
 @router.get("/account/positions", response_model=list[Position])
-async def get_positions(request):
+async def get_positions(request: Request):
     oanda = get_oanda(request)
     try:
         return await oanda.get_positions()
@@ -62,7 +62,7 @@ async def get_positions(request):
 
 
 @router.get("/account/orders")
-async def get_open_orders(request):
+async def get_open_orders(request: Request):
     oanda = get_oanda(request)
     try:
         return await oanda.get_open_orders()
@@ -74,7 +74,7 @@ async def get_open_orders(request):
 
 @router.get("/candles/{instrument}", response_model=list[Candle])
 async def get_candles(
-    request,
+    request: Request,
     instrument: str,
     granularity: str = "H1",
     count: int = 200,
@@ -90,7 +90,7 @@ async def get_candles(
 
 
 @router.get("/price/{instrument}")
-async def get_price(request, instrument: str):
+async def get_price(request: Request, instrument: str):
     oanda = get_oanda(request)
     try:
         bid, ask = await oanda.get_current_price(instrument)
@@ -103,7 +103,7 @@ async def get_price(request, instrument: str):
 
 @router.post("/analyze/{instrument}", response_model=list[FVGZone])
 async def analyze_instrument(
-    request,
+    request: Request,
     instrument: str,
     granularity: str = "H1",
     count: int = 300,
@@ -126,7 +126,7 @@ async def analyze_instrument(
 # ── Backtest ──────────────────────────────────────────────────────────────────
 
 @router.post("/backtest", response_model=BacktestResult)
-async def run_backtest_endpoint(request, body: BacktestRequest):
+async def run_backtest_endpoint(request: Request, body: BacktestRequest):
     """
     Run a full backtest across one or more instruments.
     Fetches historical candles from OANDA and simulates trades.
@@ -174,7 +174,7 @@ async def run_backtest_endpoint(request, body: BacktestRequest):
 # ── Orders ────────────────────────────────────────────────────────────────────
 
 @router.post("/orders", response_model=OrderResult)
-async def place_order(request, body: OrderRequest):
+async def place_order(request: Request, body: OrderRequest):
     """
     Place a bracket order on OANDA based on a signal.
     Calculates position size from account balance and risk %.
@@ -207,7 +207,7 @@ async def place_order(request, body: OrderRequest):
 
 
 @router.delete("/orders/{order_id}")
-async def cancel_order(request, order_id: str):
+async def cancel_order(request: Request, order_id: str):
     oanda = get_oanda(request)
     success = await oanda.cancel_order(order_id)
     if not success:
@@ -216,7 +216,7 @@ async def cancel_order(request, order_id: str):
 
 
 @router.delete("/positions/{instrument}")
-async def close_position(request, instrument: str):
+async def close_position(request: Request, instrument: str):
     oanda = get_oanda(request)
     success = await oanda.close_position(instrument)
     if not success:
@@ -227,12 +227,12 @@ async def close_position(request, instrument: str):
 # ── Scanner ───────────────────────────────────────────────────────────────────
 
 @router.get("/scanner/config", response_model=ScannerConfig)
-async def get_scanner_config(request):
+async def get_scanner_config(request: Request):
     return get_scanner(request).get_config()
 
 
 @router.put("/scanner/config", response_model=ScannerConfig)
-async def update_scanner_config(request, config: ScannerConfig):
+async def update_scanner_config(request: Request, config: ScannerConfig):
     scanner = get_scanner(request)
     scanner.configure(config)
     # If enabled, make sure it's running
@@ -244,18 +244,18 @@ async def update_scanner_config(request, config: ScannerConfig):
 
 
 @router.get("/scanner/signals", response_model=list[Signal])
-async def get_signals(request, limit: int = 50):
+async def get_signals(request: Request, limit: int = 50):
     return get_scanner(request).get_signals(limit)
 
 
 @router.delete("/scanner/signals")
-async def clear_signals(request):
+async def clear_signals(request: Request):
     get_scanner(request).clear_signals()
     return {"cleared": True}
 
 
 @router.get("/scanner/status")
-async def scanner_status(request):
+async def scanner_status(request: Request):
     scanner = get_scanner(request)
     return {
         "running":     scanner.is_running,

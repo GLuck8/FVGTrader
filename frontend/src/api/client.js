@@ -61,3 +61,11 @@ export const getORBAnalysis = (instrument, params = {}) =>
 
 export const runORBBacktest = (body) =>
   api.post('/orb/backtest', body, { timeout: 60000 }).then(r => r.data)
+
+// ── BB+RSI Strategy ──────────────────────────────────────────────────────────
+
+export const getBBRSISignals = (instrument, granularity = 'H1', count = 300, params = {}) =>
+  api.get(`/bb-rsi/signals/${instrument}`, { params: { granularity, count, ...params } }).then(r => r.data)
+
+export const runBBRSIBacktest = (body) =>
+  api.post('/bb-rsi/backtest', body, { timeout: 60000 }).then(r => r.data)

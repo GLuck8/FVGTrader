@@ -274,6 +274,7 @@ def run_backtest(
         # Scan forward for trigger + exit
         triggered = False
         trade: Optional[BacktestTrade] = None
+        trail_extreme = entry  # tracks best price seen once in trade (for trailing stop)
 
         for j in range(entry_bar + 1, min(entry_bar + params.max_age_bars + 1, len(candles))):
             bar = candles[j]
@@ -285,6 +286,7 @@ def run_backtest(
                 )
                 if entered:
                     triggered = True
+                    trail_extreme = entry
                     trade = BacktestTrade(
                         instrument   = instrument,
                         direction    = zone.direction,
@@ -296,28 +298,55 @@ def run_backtest(
                         ob_protected = zone.ob_protected,
                     )
                     last_signal_bar = j
-                continue
+                    # ── FIX 1: also check stop/target on the entry bar itself ──
+                    # (old code skipped this via `continue`, allowing the entry
+                    # bar's wide range to bypass the stop entirely)
+                else:
+                    continue  # still waiting for entry — skip to next bar
+
+            # ── Trailing stop: ratchet the stop toward the market once in profit ──
+            effective_stop = stop
+            if params.trail_pct > 0:
+                if zone.direction == FVGDirection.BULLISH:
+                    trail_extreme = max(trail_extreme, bar.high)
+                    trail_level   = trail_extreme * (1 - params.trail_pct / 100)
+                    effective_stop = max(stop, trail_level)   # never moves below initial stop
+                else:
+                    trail_extreme = min(trail_extreme, bar.low)
+                    trail_level   = trail_extreme * (1 + params.trail_pct / 100)
+                    effective_stop = min(stop, trail_level)   # never moves above initial stop
 
             # Check exit
             if zone.direction == FVGDirection.BULLISH:
-                if bar.low <= stop:
-                    _close_trade(trade, stop, bar.time, "stop")
+                if bar.low <= effective_stop:
+                    _close_trade(trade, effective_stop, bar.time, "stop")
                     break
                 elif bar.high >= target:
                     _close_trade(trade, target, bar.time, "target")
                     break
             else:
-                if bar.high >= stop:
-                    _close_trade(trade, stop, bar.time, "stop")
+                if bar.high >= effective_stop:
+                    _close_trade(trade, effective_stop, bar.time, "stop")
                     break
                 elif bar.low <= target:
                     _close_trade(trade, target, bar.time, "target")
                     break
         else:
-            # Zone expired without being hit, or trade open at end of window
+            # Zone expired without hitting stop or target
             if triggered and trade and trade.exit_price is None:
-                _close_trade(trade, candles[min(entry_bar + params.max_age_bars, len(candles)-1)].close,
-                             candles[min(entry_bar + params.max_age_bars, len(candles)-1)].time, "expired")
+                eb = candles[min(entry_bar + params.max_age_bars, len(candles) - 1)]
+                expiry_price = eb.close
+
+                # ── FIX 2: never expire at a price worse than the stop ──
+                # Prevents "expired" losses larger than the defined risk.
+                # (Realistically, the stop would have been hit first.)
+                if zone.direction == FVGDirection.BULLISH:
+                    expiry_price = max(expiry_price, effective_stop)
+                else:
+                    expiry_price = min(expiry_price, effective_stop)
+
+                reason = "expired"
+                _close_trade(trade, expiry_price, eb.time, reason)
 
         if trade and trade.pnl is not None:
             capital += trade.pnl
@@ -363,6 +392,7 @@ def compute_stats(trades: list[BacktestTrade]) -> BacktestStats:
         cum  += p
         peak  = max(peak, cum)
         max_dd = min(max_dd, cum - peak)
+
 
     return BacktestStats(
         total_trades  = len(trades),

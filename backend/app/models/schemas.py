@@ -76,6 +76,10 @@ class StrategyParams(BaseModel):
                                description="% of account to risk per trade")
     stop_buffer_pct: float = Field(0.1, ge=0.0, le=0.5,
                                    description="Extra buffer beyond gap for stop loss (as % of gap size)")
+    trail_pct: float   = Field(0.0, ge=0.0, le=2.0,
+                               description="Trailing stop distance as % of price (0 = off). "
+                                           "Once in profit the stop rises with the market, "
+                                           "locking in gains instead of expiring at market.")
 
     # Signal separation
     min_bars_between_signals: int = Field(3, ge=1, le=20)
@@ -285,6 +289,8 @@ class ORBDailySetup(BaseModel):
     signal: Optional[ORBEntrySignal]     = None
 
 
+
+
 class ORBBacktestRequest(BaseModel):
     instruments: list[str]
     lookback_days: int = Field(15, ge=1, le=60,
@@ -299,3 +305,61 @@ class ORBBacktestResult(BaseModel):
     equity_curve: list[float]
     by_instrument: dict[str, BacktestStats]
     daily_setups: list[ORBDailySetup]           # one per trading day processed
+
+
+# ── Bollinger Band + RSI Strategy ─────────────────────────────────────────────
+
+class BBRSIParams(BaseModel):
+    bb_period: int        = Field(20, ge=5,    le=50,
+                                  description="Bollinger Band period (SMA length)")
+    bb_std: float         = Field(2.0, ge=1.0, le=3.0,
+                                  description="Standard deviations for band width")
+    rsi_period: int       = Field(14, ge=5,    le=30,
+                                  description="RSI period")
+    rsi_oversold: float   = Field(30.0, ge=10.0, le=45.0,
+                                  description="RSI threshold for bullish setups")
+    rsi_overbought: float = Field(70.0, ge=55.0, le=90.0,
+                                  description="RSI threshold for bearish setups")
+    stop_buffer_pct: float = Field(0.1, ge=0.0, le=0.5,
+                                   description="Stop buffer beyond bar extreme as % of band width")
+    max_age_bars: int     = Field(20, ge=5,    le=100,
+                                  description="Max bars to hold if target not reached")
+    risk_pct: float       = Field(1.0, ge=0.1, le=5.0,
+                                  description="% of account to risk per trade")
+    trail_pct: float      = Field(0.0, ge=0.0, le=2.0,
+                                  description="Trailing stop distance as % of price (0 = off)")
+    trend_filter_enabled: bool = False
+    trend_ema_period: int = Field(100, ge=20, le=200,
+                                  description="EMA period for trend filter")
+    min_bars_between_signals: int = Field(5, ge=1, le=50)
+
+
+class BBRSISignal(BaseModel):
+    instrument: str
+    direction: FVGDirection
+    entry: float
+    stop: float
+    target: float
+    band_top: float
+    band_mid: float
+    band_bot: float
+    rsi_value: float
+    bar_index: int
+    timestamp: datetime
+    timeframe: str
+
+
+class BBRSIBacktestRequest(BaseModel):
+    instruments: list[str]
+    timeframe: str = "H1"
+    lookback_days: int = Field(90, ge=7, le=365)
+    params: BBRSIParams = BBRSIParams()
+
+
+class BBRSIBacktestResult(BaseModel):
+    request: BBRSIBacktestRequest
+    stats: BacktestStats
+    trades: list[BacktestTrade]
+    equity_curve: list[float]
+    by_instrument: dict[str, BacktestStats]
+    signals: list[BBRSISignal]

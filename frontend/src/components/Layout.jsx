@@ -8,6 +8,7 @@ const NAV = [
   { to: '/chart',    label: 'Chart',      icon: ChartIcon },
   { to: '/backtest', label: 'Backtest',   icon: TestIcon },
   { to: '/orb',      label: 'ORB-FVG',   icon: ORBIcon },
+  { to: '/bb-rsi',   label: 'BB+RSI',    icon: BBRSIIcon },
   { to: '/config',   label: 'Strategy',   icon: SlidersIcon },
 ]
 
@@ -125,6 +126,20 @@ function ORBIcon({ className }) {
       <rect x="3" y="13.5" width="18" height="1.5" rx="0.75" fill="currentColor" stroke="none" />
       <path d="M8 7 L12 3 L16 7" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M8 17 L12 21 L16 17" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function BBRSIIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      {/* Bollinger bands — outer curves */}
+      <path d="M3 12 Q6 5 12 5 Q18 5 21 12" strokeLinecap="round" />
+      <path d="M3 12 Q6 19 12 19 Q18 19 21 12" strokeLinecap="round" />
+      {/* Middle SMA line */}
+      <line x1="3" y1="12" x2="21" y2="12" strokeDasharray="2 2" />
+      {/* RSI dot at oversold bounce */}
+      <circle cx="7" cy="17" r="2" fill="currentColor" stroke="none" />
     </svg>
   )
 }

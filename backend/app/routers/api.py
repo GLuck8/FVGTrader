@@ -6,9 +6,11 @@ from app.models.schemas import (
     BacktestStats, Signal, OrderRequest, OrderResult, ScannerConfig,
     StrategyParams, FVGZone, INSTRUMENT_CATALOGUE,
     ORBParams, ORBDailySetup, ORBBacktestRequest, ORBBacktestResult,
+    BBRSIParams, BBRSISignal, BBRSIBacktestRequest, BBRSIBacktestResult,
 )
 from app.services.strategy import detect_fvgs, run_backtest, compute_stats
 from app.services.orb_strategy import analyse_today, backtest_orb
+from app.services.bb_rsi_strategy import detect_bb_rsi_signals, run_bb_rsi_backtest
 from app.core.config import get_settings
 
 router = APIRouter()
@@ -325,4 +327,68 @@ async def orb_backtest(request: Request, body: ORBBacktestRequest):
         equity_curve  = equity,
         by_instrument = by_instrument,
         daily_setups  = all_daily_setups,
+    )
+
+
+# ── BB+RSI Strategy ───────────────────────────────────────────────────────────
+
+@router.get("/bb-rsi/signals/{instrument}", response_model=list[BBRSISignal])
+async def bb_rsi_signals(
+    request: Request,
+    instrument: str,
+    granularity: str = "H1",
+    count: int = 300,
+    params: BBRSIParams = BBRSIParams(),
+):
+    """Fetch candles and return all recent BB+RSI snap-back signals."""
+    if instrument not in INSTRUMENT_CATALOGUE:
+        raise HTTPException(status_code=400, detail=f"Unknown instrument: {instrument}")
+    oanda = get_oanda(request)
+    try:
+        candles = await oanda.get_candles(instrument, granularity, count)
+        return detect_bb_rsi_signals(candles, instrument, granularity, params)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"BB-RSI analysis failed: {e}")
+
+
+@router.post("/bb-rsi/backtest", response_model=BBRSIBacktestResult)
+async def bb_rsi_backtest(request: Request, body: BBRSIBacktestRequest):
+    """Backtest the Bollinger Band + RSI strategy across one or more instruments."""
+    oanda         = get_oanda(request)
+    all_trades    = []
+    by_instrument = {}
+    all_signals   = []
+
+    for instrument in body.instruments:
+        if instrument not in INSTRUMENT_CATALOGUE:
+            raise HTTPException(status_code=400, detail=f"Unknown instrument: {instrument}")
+        try:
+            bars_per_day = {
+                "M5": 288, "M15": 96, "M30": 48,
+                "H1": 24,  "H4": 6,   "D": 1,
+            }
+            multiplier   = bars_per_day.get(body.timeframe, 24)
+            candle_count = min(body.lookback_days * multiplier, 5000)
+
+            candles   = await oanda.get_candles(instrument, body.timeframe, candle_count)
+            trades, _ = run_bb_rsi_backtest(instrument, candles, body.timeframe, body.params)
+            sigs      = detect_bb_rsi_signals(candles, instrument, body.timeframe, body.params)
+            all_trades.extend(trades)
+            by_instrument[instrument] = compute_stats(trades)
+            all_signals.extend(sigs)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"{instrument}: {e}")
+
+    sorted_trades = sorted(all_trades, key=lambda t: t.entry_time)
+    equity        = [10_000.0]
+    for t in sorted_trades:
+        equity.append(round(equity[-1] + (t.pnl or 0), 2))
+
+    return BBRSIBacktestResult(
+        request       = body,
+        stats         = compute_stats(all_trades),
+        trades        = sorted_trades,
+        equity_curve  = equity,
+        by_instrument = by_instrument,
+        signals       = sorted(all_signals, key=lambda s: s.timestamp),
     )

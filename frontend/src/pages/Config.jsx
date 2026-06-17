@@ -204,6 +204,14 @@ export default function Config() {
           displayValue={`${+(p.stop_buffer_pct * 100)}%`}
           onChange={v => setParam('stop_buffer_pct', +(v / 100).toFixed(2))}
         />
+        <SliderRow
+          label="Trailing Stop"
+          hint="Once in profit, the stop rises with price at this distance (% of price). E.g. 0.3% on EUR/USD ≈ 30 pips. 0 = disabled — trade closes at max age bars instead."
+          min={0} max={1} step={0.05}
+          value={+(p.trail_pct ?? 0)}
+          displayValue={(p.trail_pct ?? 0) > 0 ? `${p.trail_pct}%` : 'Off'}
+          onChange={v => setParam('trail_pct', +v.toFixed(2))}
+        />
       </Section>
 
       {/* Scanner config */}

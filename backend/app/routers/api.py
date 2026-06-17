@@ -132,37 +132,42 @@ async def analyze_instrument(
 @router.post("/backtest", response_model=BacktestResult)
 async def run_backtest_endpoint(request: Request, body: BacktestRequest):
     """
-    Run a full backtest across one or more instruments.
-    Fetches historical candles from OANDA and simulates trades.
+    Run a full backtest across one or more instruments and timeframes.
+    Results keyed by "SYMBOL|TF" when multiple timeframes are selected.
     """
-    oanda = get_oanda(request)
-    all_trades = []
-    by_instrument = {}
+    oanda         = get_oanda(request)
+    all_trades: list = []
+    by_instrument: dict = {}
+
+    bars_per_day = {
+        "M5": 288, "M15": 96, "M30": 48,
+        "H1": 24,  "H4": 6,   "D": 1,
+    }
+
+    timeframes = body.timeframes if body.timeframes else ["H1"]
 
     for instrument in body.instruments:
         if instrument not in INSTRUMENT_CATALOGUE:
             raise HTTPException(status_code=400, detail=f"Unknown instrument: {instrument}")
 
-        try:
-            # Convert lookback_days → approximate candle count for the timeframe
-            bars_per_day = {
-                "M5": 288, "M15": 96, "M30": 48,
-                "H1": 24,  "H4": 6,   "D": 1,
-            }
-            multiplier   = bars_per_day.get(body.timeframe, 24)
-            candle_count = min(body.lookback_days * multiplier, 5000)
+        for timeframe in timeframes:
+            try:
+                multiplier   = bars_per_day.get(timeframe, 24)
+                candle_count = min(body.lookback_days * multiplier, 5000)
 
-            candles = await oanda.get_candles(instrument, body.timeframe, candle_count)
-            trades, _ = run_backtest(instrument, candles, body.timeframe, body.params)
-            all_trades.extend(trades)
-            by_instrument[instrument] = compute_stats(trades)
+                candles   = await oanda.get_candles(instrument, timeframe, candle_count)
+                trades, _ = run_backtest(instrument, candles, timeframe, body.params)
+                all_trades.extend(trades)
 
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"{instrument}: {e}")
+                # Key is "SYMBOL|TF" for multi-TF runs, plain "SYMBOL" for single
+                key = f"{instrument}|{timeframe}" if len(timeframes) > 1 else instrument
+                by_instrument[key] = compute_stats(trades)
 
-    # Build equity curve across all instruments in time order
-    sorted_trades  = sorted(all_trades, key=lambda t: t.entry_time)
-    equity         = [10_000.0]
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"{instrument} {timeframe}: {e}")
+
+    sorted_trades = sorted(all_trades, key=lambda t: t.entry_time)
+    equity        = [10_000.0]
     for t in sorted_trades:
         equity.append(round(equity[-1] + (t.pnl or 0), 2))
 
@@ -197,12 +202,12 @@ async def place_order(request: Request, body: OrderRequest):
             raise HTTPException(status_code=400, detail="Calculated units is zero — check entry/stop prices")
 
         return await oanda.place_order(
-            instrument  = body.instrument,
-            direction   = body.direction,
-            units       = units,
-            entry_price = body.entry,
-            stop_price  = body.stop,
-            target_price= body.target,
+            instrument   = body.instrument,
+            direction    = body.direction,
+            units        = units,
+            entry_price  = body.entry,
+            stop_price   = body.stop,
+            target_price = body.target,
         )
     except HTTPException:
         raise
@@ -239,7 +244,6 @@ async def get_scanner_config(request: Request):
 async def update_scanner_config(request: Request, config: ScannerConfig):
     scanner = get_scanner(request)
     scanner.configure(config)
-    # If enabled, make sure it's running
     if config.enabled and not scanner.is_running:
         scanner.start()
     elif not config.enabled and scanner.is_running:
@@ -254,7 +258,6 @@ async def get_signals(request: Request, limit: int = 50):
 
 @router.delete("/scanner/signals")
 async def clear_signals(request: Request):
-    get_scanner(request).clear_signals()
     get_scanner(request).clear_signals()
     return {"cleared": True}
 
@@ -297,7 +300,7 @@ async def orb_backtest(request: Request, body: ORBBacktestRequest):
     Backtest the ORB-FVG strategy on M1 candles.
     Fetches up to 5000 M1 bars per instrument (~12 trading days for US indices).
     """
-    oanda = get_oanda(request)
+    oanda            = get_oanda(request)
     all_trades       = []
     by_instrument    = {}
     all_daily_setups = []

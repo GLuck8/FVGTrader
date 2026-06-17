@@ -120,7 +120,7 @@ class OrderBlock(BaseModel):
 
 class BacktestRequest(BaseModel):
     instruments: list[str]
-    timeframe: str = "H1"
+    timeframes: list[str] = ["H1"]   # supports multiple timeframes in one run
     lookback_days: int = Field(90, ge=7, le=365)
     params: StrategyParams = StrategyParams()
 
@@ -133,6 +133,7 @@ class BacktestTrade(BaseModel):
     target: float
     size: float
     entry_time: datetime
+    timeframe: Optional[str] = None
     exit_time: Optional[datetime] = None
     exit_price: Optional[float] = None
     exit_reason: Optional[Literal["target", "stop", "expired"]] = None

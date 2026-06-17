@@ -295,6 +295,7 @@ def run_backtest(
                         target       = target,
                         size         = size,
                         entry_time   = bar.time,
+                        timeframe    = timeframe,
                         ob_protected = zone.ob_protected,
                     )
                     last_signal_bar = j

@@ -109,6 +109,14 @@ class LiveScanner:
 
                     fresh = get_fresh_signals(candles, instrument, timeframe, params)
 
+                    # Build a dedup key set from existing pending signals so we
+                    # never add the same zone twice across scan cycles.
+                    pending_keys = {
+                        (s.instrument, s.direction, s.entry, s.timeframe)
+                        for s in self._signals
+                        if s.status == "pending"
+                    }
+
                     for zone in fresh:
                         # Calculate trade levels
                         gap_size = zone.top - zone.bottom
@@ -126,13 +134,19 @@ class LiveScanner:
                         if risk <= 0:
                             continue
 
+                        entry_r = round(entry, 5)
+                        dedup_key = (instrument, zone.direction, entry_r, timeframe)
+                        if dedup_key in pending_keys:
+                            log.debug(f"  Skipping duplicate pending signal: {dedup_key}")
+                            continue
+
                         signal = Signal(
                             id           = str(uuid.uuid4()),
                             instrument   = instrument,
                             direction    = zone.direction,
                             zone_top     = zone.top,
                             zone_bottom  = zone.bottom,
-                            entry        = round(entry, 5),
+                            entry        = entry_r,
                             stop         = round(stop, 5),
                             target       = round(target, 5),
                             timeframe    = timeframe,
@@ -140,11 +154,12 @@ class LiveScanner:
                             ob_protected = zone.ob_protected,
                         )
                         self._signals.append(signal)
+                        pending_keys.add(dedup_key)
                         new_signals += 1
 
                         log.info(
                             f"  SIGNAL: {zone.direction.value.upper()} {instrument} "
-                            f"({timeframe}) | entry={entry:.5f} "
+                            f"({timeframe}) | entry={entry_r:.5f} "
                             f"| OB={'YES' if zone.ob_protected else 'no'}"
                         )
 

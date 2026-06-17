@@ -208,11 +208,15 @@ def run_bb_rsi_backtest(
     timeframe: str,
     params: "BBRSIParams",
     starting_capital: float = 10_000.0,
+    compound: bool = False,
 ) -> tuple[list[BacktestTrade], list[float]]:
     """
     Simulate BB+RSI entries. Returns (trades, equity_curve).
     Entry is at-close of the signal bar (market order on close).
     Stop and target are OCO orders placed immediately.
+
+    compound=False (default): always size from starting_capital — realistic.
+    compound=True: sizes from running capital — exponential reinvestment.
     """
     signals = detect_bb_rsi_signals(candles, instrument, timeframe, params)
 
@@ -228,9 +232,10 @@ def run_bb_rsi_backtest(
         if i - last_bar < params.min_bars_between_signals:
             continue
 
-        risk         = abs(sig.entry - sig.stop)
-        risk_dollars = capital * (params.risk_pct / 100)
-        size         = round(risk_dollars / risk, 4)
+        risk           = abs(sig.entry - sig.stop)
+        sizing_capital = capital if compound else starting_capital
+        risk_dollars   = sizing_capital * (params.risk_pct / 100)
+        size           = round(risk_dollars / risk, 4)
 
         trade = BacktestTrade(
             instrument   = instrument,

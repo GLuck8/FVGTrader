@@ -34,6 +34,7 @@ export default function Backtest() {
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState(null)
   const [result, setResult]             = useState(null)
+  const [compound, setCompound]         = useState(false)
   const [activeTab, setActiveTab]       = useState('overview')
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function Backtest() {
         timeframes,
         lookback_days: lookbackDays,
         params,
+        compound,
       })
       setResult(res)
       setActiveTab('overview')
@@ -205,6 +207,8 @@ export default function Backtest() {
 
           <div className="card space-y-3">
             <h2 className="text-sm font-semibold text-gray-300">Filters</h2>
+
+            <ToggleRow label="Compound Profits" value={compound} onChange={setCompound} />
 
             <ToggleRow label="OB Filter" value={params.ob_filter_enabled}
               onChange={v => setParam('ob_filter_enabled', v)} />

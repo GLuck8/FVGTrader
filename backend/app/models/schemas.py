@@ -123,6 +123,10 @@ class BacktestRequest(BaseModel):
     timeframes: list[str] = ["H1"]   # supports multiple timeframes in one run
     lookback_days: int = Field(90, ge=7, le=365)
     params: StrategyParams = StrategyParams()
+    compound: bool = Field(False,
+                           description="If True, reinvest profits into position sizing "
+                                       "(exponential growth). If False (default), always "
+                                       "size based on starting capital — more realistic.")
 
 
 class BacktestTrade(BaseModel):

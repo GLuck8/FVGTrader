@@ -225,10 +225,16 @@ def run_backtest(
     timeframe: str,
     params: StrategyParams,
     starting_capital: float = 10_000.0,
+    compound: bool = False,
 ) -> tuple[list[BacktestTrade], list[float]]:
     """
     Simulate FVG entries on a candle series.
     Returns (trades, equity_curve).
+
+    compound=False (default): position size always based on starting_capital.
+        Shows the strategy's real edge without exponential reinvestment distortion.
+    compound=True: each win increases the capital used for sizing (realistic for
+        accounts that reinvest all profits, but can produce astronomical P&L).
     """
     zones = detect_fvgs(candles, instrument, timeframe, params)
 
@@ -267,9 +273,11 @@ def run_backtest(
         if risk <= 0:
             continue
 
-        # Position size based on % risk
-        risk_dollars = capital * (params.risk_pct / 100)
-        size = round(risk_dollars / risk, 4)
+        # Position size: use running capital if compounding, starting capital otherwise.
+        # Non-compounding (default) shows real edge without exponential distortion.
+        sizing_capital = capital if compound else starting_capital
+        risk_dollars   = sizing_capital * (params.risk_pct / 100)
+        size           = round(risk_dollars / risk, 4)
 
         # Scan forward for trigger + exit
         triggered = False

@@ -156,7 +156,8 @@ async def run_backtest_endpoint(request: Request, body: BacktestRequest):
                 candle_count = min(body.lookback_days * multiplier, 5000)
 
                 candles   = await oanda.get_candles(instrument, timeframe, candle_count)
-                trades, _ = run_backtest(instrument, candles, timeframe, body.params)
+                trades, _ = run_backtest(instrument, candles, timeframe, body.params,
+                                         compound=body.compound)
                 all_trades.extend(trades)
 
                 # Key is "SYMBOL|TF" for multi-TF runs, plain "SYMBOL" for single

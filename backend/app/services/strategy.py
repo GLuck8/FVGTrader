@@ -307,23 +307,28 @@ def run_backtest(
                         ob_protected = zone.ob_protected,
                     )
                     last_signal_bar = j
-                    # ── FIX 1: also check stop/target on the entry bar itself ──
-                    # (old code skipped this via `continue`, allowing the entry
-                    # bar's wide range to bypass the stop entirely)
+                    # Entry bar: skip trail update and exit checks.
+                    # Assume entry at bar close — can't also exit same bar (look-ahead).
+                    continue
                 else:
                     continue  # still waiting for entry — skip to next bar
 
-            # ── Trailing stop: ratchet the stop toward the market once in profit ──
+            # ── Trailing stop: only activate after 1R of profit ──────────────
+            # Prevents entry-bar high from immediately ratcheting trail above entry
+            # (was causing thousands of tiny profitable "stop-outs" and 88%+ win rates).
+            # Trail only moves once price has proven itself by reaching 1R in profit.
             effective_stop = stop
             if params.trail_pct > 0:
                 if zone.direction == FVGDirection.BULLISH:
-                    trail_extreme = max(trail_extreme, bar.high)
-                    trail_level   = trail_extreme * (1 - params.trail_pct / 100)
-                    effective_stop = max(stop, trail_level)   # never moves below initial stop
+                    if bar.high >= entry + risk:  # 1R threshold reached
+                        trail_extreme  = max(trail_extreme, bar.high)
+                        trail_level    = trail_extreme * (1 - params.trail_pct / 100)
+                        effective_stop = max(stop, trail_level)
                 else:
-                    trail_extreme = min(trail_extreme, bar.low)
-                    trail_level   = trail_extreme * (1 + params.trail_pct / 100)
-                    effective_stop = min(stop, trail_level)   # never moves above initial stop
+                    if bar.low <= entry - risk:   # 1R threshold reached
+                        trail_extreme  = min(trail_extreme, bar.low)
+                        trail_level    = trail_extreme * (1 + params.trail_pct / 100)
+                        effective_stop = min(stop, trail_level)
 
             # Check exit
             if zone.direction == FVGDirection.BULLISH:

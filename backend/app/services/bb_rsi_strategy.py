@@ -254,17 +254,19 @@ def run_bb_rsi_backtest(
         for j in range(i + 1, min(i + params.max_age_bars + 1, len(candles))):
             bar = candles[j]
 
-            # Trailing stop
+            # Trailing stop — only activate after 1R of profit
             effective_stop = sig.stop
             if params.trail_pct > 0:
                 if sig.direction == FVGDirection.BULLISH:
-                    trail_extreme  = max(trail_extreme, bar.high)
-                    trail_level    = trail_extreme * (1 - params.trail_pct / 100)
-                    effective_stop = max(sig.stop, trail_level)
+                    if bar.high >= sig.entry + risk:  # 1R threshold
+                        trail_extreme  = max(trail_extreme, bar.high)
+                        trail_level    = trail_extreme * (1 - params.trail_pct / 100)
+                        effective_stop = max(sig.stop, trail_level)
                 else:
-                    trail_extreme  = min(trail_extreme, bar.low)
-                    trail_level    = trail_extreme * (1 + params.trail_pct / 100)
-                    effective_stop = min(sig.stop, trail_level)
+                    if bar.low <= sig.entry - risk:   # 1R threshold
+                        trail_extreme  = min(trail_extreme, bar.low)
+                        trail_level    = trail_extreme * (1 + params.trail_pct / 100)
+                        effective_stop = min(sig.stop, trail_level)
 
             if sig.direction == FVGDirection.BULLISH:
                 if bar.low <= effective_stop:
